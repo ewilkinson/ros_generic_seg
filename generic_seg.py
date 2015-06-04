@@ -255,10 +255,10 @@ class GenericSegmenter:
                 x2 = int((self.gmm.means_[0, 0] + alpha * covars[0, 0, 0]) * x_size)
                 y1 = int((self.gmm.means_[0, 1] - alpha * covars[0, 1, 1]) * y_size)
                 y2 = int((self.gmm.means_[0, 1] + alpha * covars[0, 1, 1]) * y_size)
-                # d1 = int((self.gmm.means_[0, 2] - alpha * covars[0, 2, 2]) * self.current_depth_thresh)
-                # d2 = int((self.gmm.means_[0, 2] + alpha * covars[0, 2, 2]) * self.current_depth_thresh)
+                # d1 = int((self.gmm.means_[0, 3] - alpha * covars[0, 3, 3]) * self.current_depth_thresh)
+                # d2 = int((self.gmm.means_[0, 3] + alpha * covars[0, 3, 3]) * self.current_depth_thresh)
 
-                mean_depth = self.gmm.means_[0, 2]
+                mean_depth = self.gmm.means_[0, 3]
 
                 boxes.append([x1, y1, x2, y2, mean_depth])
 
