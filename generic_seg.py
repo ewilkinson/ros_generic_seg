@@ -134,8 +134,6 @@ class GenericSegmenter:
                     SI = max(0, min(xa2, xb2) - max(xa1, xb1)) * max(0, min(ya2, yb2) - max(ya1, yb1))
                     ratio = max(SI * 1.0 / SA, SI * 1.0 / SB)
 
-                    print ratio
-
                     if ratio > self.box_merge_threshold:
                         has_merged = True
                         this_has_merged = True
