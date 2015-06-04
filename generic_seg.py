@@ -17,7 +17,7 @@ from sklearn.preprocessing import StandardScaler
 import time
 
 
-class Listener:
+class GenericSegmenter:
     def __init__(self, cluster_type="dbscan", use_gray=True, depth_max_threshold=4000, show_segmentation=False, show_cluster=False, show_mask=False, merge_boxes=False):
         self.cluster_type = cluster_type
         self.use_gray = use_gray
@@ -44,7 +44,7 @@ class Listener:
         self.depth_count = 0
 
         self.depth_max_threshold = depth_max_threshold
-        self.box_merge_threshold = 0.8
+        self.box_merge_threshold = 0.5
 
         self.depth_mask = None
         self.depth_img = None
@@ -80,20 +80,20 @@ class Listener:
         return labels, unique_labels, n_clusters
 
     def _gen_features(self, mask, gray_image):
-        x_size, y_size = mask.shape[1], mask.shape[0]
-        gX, gY = np.meshgrid(range(mask.shape[1]), range(mask.shape[0]))
+        x_size, y_size = mask.shape[0], mask.shape[1]
+        gX, gY = np.meshgrid(range(mask.shape[0]), range(mask.shape[1]))
 
         if self.use_gray:
             X = np.zeros((mask.size, 5))
-            X[:, 0] = gX.ravel() * 1.0 / x_size
-            X[:, 1] = gY.ravel() * 1.0 / y_size
+            X[:, 0] = gX.transpose().ravel() * 1.0 / x_size
+            X[:, 1] = gY.transpose().ravel() * 1.0 / y_size
             X[:, 2] = mask.ravel()
             X[:, 3] = self.depth_img.ravel() * 1.0 / self.current_depth_thresh
             X[:, 4] = gray_image.ravel() * 1.0 / gray_image.max()
         else:
             X = np.zeros((mask.size, 4))
-            X[:, 0] = gX.ravel() * 1.0 / x_size
-            X[:, 1] = gY.ravel() * 1.0 / y_size
+            X[:, 0] = gX.transpose().ravel() * 1.0 / x_size
+            X[:, 1] = gY.transpose().ravel() * 1.0 / y_size
             X[:, 2] = mask.ravel()
             X[:, 3] = self.depth_img.ravel() * 1.0 / self.current_depth_thresh
 
@@ -123,16 +123,18 @@ class Listener:
             has_merged = False
 
             while len(boxes):
-                xa1, ya1, xa2, ya2, da1, da2 = boxes.pop()
+                xa1, ya1, xa2, ya2, mean_depth_a = boxes.pop()
                 SA = abs((xa1 - xa2) * (ya1 - ya2))
                 this_has_merged = False
 
                 for j in range(len(boxes) - 1, -1, -1):
 
-                    xb1, yb1, xb2, yb2, db1, db2 = boxes[j]
+                    xb1, yb1, xb2, yb2, mean_depth_b = boxes[j]
                     SB = abs((xb1 - xb2) * (yb1 - yb2))
-                    SI = max(0, min(xa2, xb2) - max(xa1, xb1)) * max(0, min(ya1, yb1) - max(ya2, yb2))
+                    SI = max(0, min(xa2, xb2) - max(xa1, xb1)) * max(0, min(ya2, yb2) - max(ya1, yb1))
                     ratio = max(SI * 1.0 / SA, SI * 1.0 / SB)
+
+                    print ratio
 
                     if ratio > self.box_merge_threshold:
                         has_merged = True
@@ -140,12 +142,12 @@ class Listener:
                         boxes.remove(boxes[j])
                         new_x1, new_x2 = min(xa1, xb1), max(xa2, xb2)
                         new_y1, new_y2 = max(ya1, yb1), min(ya2, yb2)
-                        new_d1, new_d2 = min(da1, db1), max(db1, db2)
-                        new_boxes.append([new_x1, new_y1, new_x2, new_y2, new_d1, new_d2])
+                        new_mean_depth = SA * mean_depth_a + SB * mean_depth_b / (1.0 * SA + SB)
+                        new_boxes.append([new_x1, new_y1, new_x2, new_y2, new_mean_depth])
                         break
 
                 if not this_has_merged:
-                    new_boxes.append([xa1, ya1, xa2, ya2, da1, da2])
+                    new_boxes.append([xa1, ya1, xa2, ya2, mean_depth_a])
 
             # break out of infinite loop
             if not has_merged:
@@ -189,6 +191,9 @@ class Listener:
             return
 
         gray_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
+
+        self.rgb_imge = np.copy(cv_image)
+        self.gray_image = gray_image
 
         # masked_gray = gray_image*self.depth_mask
         # mask1 = gray_image < threshold_otsu(masked_gray)
@@ -239,9 +244,9 @@ class Listener:
                     exp=5
                     for i in range(class_feats.shape[0]):
                         x, y = int(class_feats[i,0]*x_size), int(class_feats[i,1]*y_size)
-                        cluster_image[max(y- exp,0):min(y+exp, cluster_image.shape[0]),max(x- exp,0):min(x+exp,cluster_image.shape[1]), 0] = rand_0
-                        cluster_image[max(y- exp,0):min(y+exp, cluster_image.shape[0]),max(x- exp,0):min(x+exp,cluster_image.shape[1]), 1] = rand_1
-                        cluster_image[max(y- exp,0):min(y+exp, cluster_image.shape[0]),max(x- exp,0):min(x+exp,cluster_image.shape[1]), 2] = rand_2
+                        cluster_image[max(x- exp,0):min(x+exp, cluster_image.shape[0]),max(y- exp,0):min(y+exp,cluster_image.shape[1]), 0] = rand_0
+                        cluster_image[max(x- exp,0):min(x+exp, cluster_image.shape[0]),max(y- exp,0):min(y+exp,cluster_image.shape[1]), 1] = rand_1
+                        cluster_image[max(x- exp,0):min(x+exp, cluster_image.shape[0]),max(y- exp,0):min(y+exp,cluster_image.shape[1]), 2] = rand_2
 
 
                 self.gmm.fit(class_feats)
@@ -250,23 +255,27 @@ class Listener:
                 alpha = 2.2
                 x1 = int((self.gmm.means_[0, 0] - alpha * covars[0, 0, 0]) * x_size)
                 x2 = int((self.gmm.means_[0, 0] + alpha * covars[0, 0, 0]) * x_size)
-                y1 = int((self.gmm.means_[0, 1] + alpha * covars[0, 1, 1]) * y_size)
-                y2 = int((self.gmm.means_[0, 1] - alpha * covars[0, 1, 1]) * y_size)
-                d1 = int((self.gmm.means_[0, 2] - alpha * covars[0, 2, 2]) * self.current_depth_thresh)
-                d2 = int((self.gmm.means_[0, 2] - alpha * covars[0, 2, 2]) * self.current_depth_thresh)
+                y1 = int((self.gmm.means_[0, 1] - alpha * covars[0, 1, 1]) * y_size)
+                y2 = int((self.gmm.means_[0, 1] + alpha * covars[0, 1, 1]) * y_size)
+                # d1 = int((self.gmm.means_[0, 2] - alpha * covars[0, 2, 2]) * self.current_depth_thresh)
+                # d2 = int((self.gmm.means_[0, 2] + alpha * covars[0, 2, 2]) * self.current_depth_thresh)
 
-                boxes.append([x1, y1, x2, y2, d1, d2])
+                mean_depth = self.gmm.means_[0, 2]
+
+                boxes.append([x1, y1, x2, y2, mean_depth])
 
             if self.merge_boxes:
                 boxes = self._merge_boxes_gmm(boxes)
 
-            for x1, y1, x2, y2, d1, d2 in boxes:
-                cv2.rectangle(cv_image, (x1, y1), (x2, y2), 125, 2)
+            if self.show_segmentation:
+                for x1, y1, x2, y2, mean_depth in boxes:
+                    cv2.rectangle(cv_image, (y1, x1), (y2, x2), (125,0,0), 2)
+
+            self.boxes = boxes
 
         end_time = time.time()
-
-        print 'Pre Proc Time : ', proc_time - start_time
-        print 'Total Time : ', end_time - start_time
+        # print 'Pre Proc Time : ', proc_time - start_time
+        # print 'Total Time : ', end_time - start_time
 
         if self.show_mask:
             mask *= 255
@@ -288,19 +297,22 @@ class Listener:
         rospy.Subscriber("/asus/rgb/image_raw", Image, self.callback)
         rospy.Subscriber("/asus/depth/image_raw", Image, self.depth_callback)
 
-        rospy.spin()
-
 
 if __name__ == '__main__':
-    node = Listener(cluster_type="dbscan",
-                    use_gray=False,
-                    depth_max_threshold=4000,
-                    show_segmentation=True,
-                    show_cluster=False,
-                    show_mask=False,
-                    merge_boxes=True)
+    segmenter = GenericSegmenter(cluster_type="dbscan",
+                            use_gray=False,
+                            depth_max_threshold=4000,
+                            show_segmentation=True,
+                            show_cluster=True,
+                            show_mask=False,
+                            merge_boxes=True)
+
     try:
-        node.listen()
+        segmenter.listen()
+
+        while True:
+            time.sleep(5)
+
     except KeyboardInterrupt:
         print "Shutting down"
 
