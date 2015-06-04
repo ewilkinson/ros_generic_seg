@@ -44,10 +44,12 @@ class GenericSegmenter:
         self.depth_count = 0
 
         self.depth_max_threshold = depth_max_threshold
-        self.box_merge_threshold = 0.5
+        self.box_merge_threshold = 0.8
 
         self.depth_mask = None
         self.depth_img = None
+        self.rgb_imge = None
+        self.gray_image = None
         self.current_depth_thresh = 0
 
         self.DBSCAN = "dbscan"
@@ -235,17 +237,6 @@ class GenericSegmenter:
                 if class_feats.shape[0] < 20:
                     continue
 
-                if self.show_cluster:
-                    rand_0 = self.rand_color()
-                    rand_1 = self.rand_color()
-                    rand_2 = self.rand_color()
-                    exp=5
-                    for i in range(class_feats.shape[0]):
-                        x, y = int(class_feats[i,0]*x_size), int(class_feats[i,1]*y_size)
-                        cluster_image[max(x- exp,0):min(x+exp, cluster_image.shape[0]),max(y- exp,0):min(y+exp,cluster_image.shape[1]), 0] = rand_0
-                        cluster_image[max(x- exp,0):min(x+exp, cluster_image.shape[0]),max(y- exp,0):min(y+exp,cluster_image.shape[1]), 1] = rand_1
-                        cluster_image[max(x- exp,0):min(x+exp, cluster_image.shape[0]),max(y- exp,0):min(y+exp,cluster_image.shape[1]), 2] = rand_2
-
 
                 self.gmm.fit(class_feats)
                 covars = np.sqrt(np.asarray(self.gmm._get_covars()))
@@ -258,9 +249,18 @@ class GenericSegmenter:
                 # d1 = int((self.gmm.means_[0, 3] - alpha * covars[0, 3, 3]) * self.current_depth_thresh)
                 # d2 = int((self.gmm.means_[0, 3] + alpha * covars[0, 3, 3]) * self.current_depth_thresh)
 
-                mean_depth = self.gmm.means_[0, 3]
+                mean_depth = self.gmm.means_[0, 3] * self.current_depth_thresh
 
                 boxes.append([x1, y1, x2, y2, mean_depth])
+
+                if self.show_cluster:
+                    exp=5
+                    for i in range(class_feats.shape[0]):
+                        x, y = int(class_feats[i,0]*x_size), int(class_feats[i,1]*y_size)
+                        c = self.gmm.means_[0, 3] * 255
+                        cluster_image[max(x- exp,0):min(x+exp, cluster_image.shape[0]),max(y- exp,0):min(y+exp,cluster_image.shape[1]), 0] = c
+                        cluster_image[max(x- exp,0):min(x+exp, cluster_image.shape[0]),max(y- exp,0):min(y+exp,cluster_image.shape[1]), 1] = c
+                        cluster_image[max(x- exp,0):min(x+exp, cluster_image.shape[0]),max(y- exp,0):min(y+exp,cluster_image.shape[1]), 2] = c
 
             if self.merge_boxes:
                 boxes = self._merge_boxes_gmm(boxes)
