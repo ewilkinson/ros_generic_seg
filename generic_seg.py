@@ -27,6 +27,8 @@ class GenericSegmenter:
         self.show_mask = show_mask
         self.merge_boxes = merge_boxes
 
+        cv2.startWindowThread()
+
         if show_segmentation:
             cv2.namedWindow("Image window", 1)
         if show_mask:
@@ -44,12 +46,13 @@ class GenericSegmenter:
         self.depth_count = 0
 
         self.depth_max_threshold = depth_max_threshold
-        self.box_merge_threshold = 0.8
+        self.box_merge_threshold = 0.3
 
         self.depth_mask = None
         self.depth_img = None
         self.rgb_imge = None
         self.gray_image = None
+        self.boxes = None
         self.current_depth_thresh = 0
 
         self.DBSCAN = "dbscan"
@@ -141,7 +144,7 @@ class GenericSegmenter:
                         this_has_merged = True
                         boxes.remove(boxes[j])
                         new_x1, new_x2 = min(xa1, xb1), max(xa2, xb2)
-                        new_y1, new_y2 = max(ya1, yb1), min(ya2, yb2)
+                        new_y1, new_y2 = min(ya1, yb1), max(ya2, yb2)
                         new_mean_depth = SA * mean_depth_a + SB * mean_depth_b / (1.0 * SA + SB)
                         new_boxes.append([new_x1, new_y1, new_x2, new_y2, new_mean_depth])
                         break
@@ -255,12 +258,15 @@ class GenericSegmenter:
 
                 if self.show_cluster:
                     exp=5
+                    rc = self.rand_color()
+                    rc2 = self.rand_color()
+                    rc3 = self.rand_color()
+                    # c = self.gmm.means_[0, 3] * 255
                     for i in range(class_feats.shape[0]):
                         x, y = int(class_feats[i,0]*x_size), int(class_feats[i,1]*y_size)
-                        c = self.gmm.means_[0, 3] * 255
-                        cluster_image[max(x- exp,0):min(x+exp, cluster_image.shape[0]),max(y- exp,0):min(y+exp,cluster_image.shape[1]), 0] = c
-                        cluster_image[max(x- exp,0):min(x+exp, cluster_image.shape[0]),max(y- exp,0):min(y+exp,cluster_image.shape[1]), 1] = c
-                        cluster_image[max(x- exp,0):min(x+exp, cluster_image.shape[0]),max(y- exp,0):min(y+exp,cluster_image.shape[1]), 2] = c
+                        cluster_image[max(x- exp,0):min(x+exp, cluster_image.shape[0]),max(y- exp,0):min(y+exp,cluster_image.shape[1]), 0] = rc3
+                        cluster_image[max(x- exp,0):min(x+exp, cluster_image.shape[0]),max(y- exp,0):min(y+exp,cluster_image.shape[1]), 1] = rc2
+                        cluster_image[max(x- exp,0):min(x+exp, cluster_image.shape[0]),max(y- exp,0):min(y+exp,cluster_image.shape[1]), 2] = rc
 
             if self.merge_boxes:
                 boxes = self._merge_boxes_gmm(boxes)
@@ -315,4 +321,3 @@ if __name__ == '__main__':
         print "Shutting down"
 
     cv2.destroyAllWindows()
-
